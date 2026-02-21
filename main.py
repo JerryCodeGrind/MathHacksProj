@@ -187,7 +187,7 @@ def main():
     sheet = SpriteSheet("cars.png")
 
     START_Y_M = 0.0
-    END_Y_M = START_Y_M + 1000.0
+    END_Y_M = START_Y_M + 10000.0
 
     start_button = Button((10, 40, 110, 32), "START")
     moving = False
