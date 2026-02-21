@@ -46,7 +46,7 @@ class CarLogic:
       if lane_diff == -1 and (too_close_to_front or too_close_to_back): params["car_right"] = True
     return False
 
-  def move(self):
+  def update(self):
     params = self.analyze_traffic()
     if params["car_front"]:
       if not params["car_left"] and self.lane < self.laneCount - 1:

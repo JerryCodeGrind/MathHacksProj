@@ -3,6 +3,7 @@ import random
 import sys
 from sheets import SpriteSheet
 from sheets import ATLAS_KEYS
+from carlogic import CarLogic, cars
 
 WIDTH, HEIGHT = 400, 800
 FPS = 60
@@ -28,21 +29,24 @@ def kmh_to_mps(kmh: float) -> float:
 def m_to_km(m: float) -> float:
     return m / 1000.0
 
-class Car:
-    def __init__(self, lane, world_y_m, speed_kmh, sprite):
-        self.lane = lane
-        self.world_y_m = world_y_m
-        self.speed_kmh = speed_kmh
+class Car(CarLogic):
+    def __init__(self, lane, world_y_m, speed_kmh, speed_limit, sprite):
+        super().__init__()
+        self.set_properties(
+            lane=lane,
+            position=world_y_m,
+            speed=kmh_to_mps(speed_kmh),
+            speed_limit=kmh_to_mps(speed_limit),
+            acceleration=10,
+            deceleration=-20,
+            laneCount=LANES,
+            length=CAR_H
+        )
         self.sprite = sprite  # REQUIRED
-
+    
     def x(self):
         lane_center = ROAD_LEFT + self.lane * LANE_W + LANE_W // 2
         return lane_center - CAR_W // 2
-
-    def update(self, dt, moving: bool):
-        if not moving:
-            return
-        self.world_y_m += kmh_to_mps(self.speed_kmh) * dt
 
     def draw(self, screen, camera_y_m):
         screen_y = HEIGHT - (self.world_y_m - camera_y_m) - CAR_H
@@ -117,7 +121,6 @@ def main():
     player_car = Car(lane=1, world_y_m=START_Y_M, speed_kmh=240.0, sprite=player_sprite)
 
     number_of_cars = 5
-    cars = []
 
     for i in range(number_of_cars):
         lane = i % LANES
@@ -129,6 +132,7 @@ def main():
                 lane=lane,
                 world_y_m=START_Y_M,
                 speed_kmh=player_car.speed_kmh,
+                speed_limit=120,
                 sprite=traffic_sprite
             )
         )
