@@ -37,8 +37,8 @@ class Car(CarLogic):
             position=position_m,
             speed=kmh_to_mps(speed_kmh),
             speed_limit=kmh_to_mps(speed_limit_kmh),
-            acceleration=6.0,     # m/s^2 (tuned for sane feel)
-            deceleration=-12.0,   # m/s^2
+            acceleration=12.0,     # m/s^2 (tuned for sane feel)
+            deceleration=-18.0,   # m/s^2
             laneCount=LANES,
             length=CAR_H
         )
@@ -49,7 +49,7 @@ class Car(CarLogic):
         return lane_center - CAR_W // 2
 
     def draw(self, screen, camera_y_m):
-        screen_y = HEIGHT - (self.position - camera_y_m) - CAR_H
+        screen_y = HEIGHT - (self.position - camera_y_m)
         screen.blit(self.sprite, (self.x(), screen_y))
 
 class SpeedSign:
@@ -101,7 +101,7 @@ def spawn_traffic(sheet, start_y_m, player_speed_limit_kmh, count=6):
 
     # Create player first and add to cars so traffic logic sees them
     player_sprite = sheet.get_scaled("lambo", (CAR_W, CAR_H))
-    player = Car(lane=1, position_m=start_y_m, speed_kmh=0.0, speed_limit_kmh=player_speed_limit_kmh, sprite=player_sprite)
+    player = Car(lane=1, position_m=start_y_m, speed_kmh=120.0, speed_limit_kmh=player_speed_limit_kmh, sprite=player_sprite)
 
     # Track last placed position per lane to avoid overlaps
     last_pos_by_lane = [start_y_m + 80.0 for _ in range(LANES)]
@@ -132,22 +132,21 @@ def main():
     sheet = SpriteSheet("cars.png")
 
     START_Y_M = 0.0
-    END_Y_M = START_Y_M + 1000.0
+    END_Y_M = START_Y_M + 3000.0
 
     start_button = Button((10, 40, 110, 32), "START")
     moving = False
     finished = False
 
     # Build player + traffic (player returned; all cars stored in global cars list)
-    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=6)
+    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=2)
 
     # Camera in meters
     camera_y_m = 0.0
 
     # Speed signs
     signs = []
-    next_sign_y_m = 150.0
-    sign_index = 0
+    next_sign_y_m = -150
 
     running = True
     while running:
@@ -165,17 +164,22 @@ def main():
             # Spawn signs ahead (km/h)
             while next_sign_y_m < min(player_car.position + 1400, END_Y_M + 400) and next_sign_y_m < END_Y_M:
                 signs.append(SpeedSign(next_sign_y_m, random.choice([120, 160, 200, 240, 280])))
-                next_sign_y_m += random.uniform(150, 250)
+                next_sign_y_m += random.uniform(350, 450)
 
-            # Apply sign: update SPEED LIMIT (m/s) when player passes sign
+            '''# Apply sign: update SPEED LIMIT (m/s) when player passes sign
             while sign_index < len(signs) and player_car.position >= signs[sign_index].position:
                 new_limit_kmh = float(signs[sign_index].limit_kmh)
-                player_car.speedLimit = kmh_to_mps(new_limit_kmh)
-                sign_index += 1
+                player_car.speed_limit = kmh_to_mps(new_limit_kmh)
+                sign_index += 1'''
 
             # Update all cars with dt-based physics
             for c in cars:
+                for sign in signs:
+                    if sign.position > c.position: continue
+                    c.speed_limit = kmh_to_mps(sign.limit_kmh)
+                
                 c.update(dt)
+
 
             # Camera follows player
             camera_y_m = player_car.position - 120.0
@@ -184,6 +188,8 @@ def main():
             if player_car.position >= END_Y_M:
                 finished = True
                 moving = False
+            
+            print(f"{cars[1].intent} {mps_to_kmh(cars[1].speed)} {mps_to_kmh(cars[1].speed_limit)}")
 
         # Draw world + signs
         draw_world(screen, signs, camera_y_m, font)
@@ -197,7 +203,7 @@ def main():
         # UI info
         distance_m = max(0.0, player_car.position - START_Y_M)
         speed_kmh = mps_to_kmh(player_car.speed)
-        limit_kmh = mps_to_kmh(player_car.speedLimit)
+        limit_kmh = mps_to_kmh(player_car.speed_limit)
 
         info1 = font.render(f"Speed: {int(speed_kmh)} km/h   Limit: {int(limit_kmh)}", True, (255, 255, 255))
         info2 = font.render(f"Distance: {distance_m:.1f} m / 1000.0 m", True, (255, 255, 255))

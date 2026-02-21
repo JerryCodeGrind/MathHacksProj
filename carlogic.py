@@ -21,7 +21,7 @@ class CarLogic:
   def set_properties(self, position=0, speed=0, speed_limit=0, acceleration=0, deceleration=0, lane=0, laneCount=1, length=0):
     self.position = position
     self.speed = speed
-    self.speedLimit = speed_limit
+    self.speed_limit = speed_limit
     self.acceleration = acceleration
     self.deceleration = deceleration
     self.lane = lane
@@ -58,10 +58,12 @@ class CarLogic:
       else:
         self.intent = Intent.DECELERATE
     else:
-        if self.speed >= self.speedLimit:
-          self.intent = Intent.CRUISE
-        else:
+        if self.speed - self.speed_limit > 1:
+          self.intent = Intent.DECELERATE
+        elif self.speed < self.speed_limit:
           self.intent = Intent.ACCELERATE
+        else:
+          self.intent = Intent.CRUISE
     
     match self.intent:
       case Intent.ACCELERATE:
