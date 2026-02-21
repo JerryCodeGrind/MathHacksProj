@@ -16,8 +16,8 @@ SPEEDO_CENTER = (80, 680)  # left side, near bottom
 SPEEDO_RADIUS = 60
 SPEEDO_MAX_SPEED = 300  # km/h
 
-LANES = 5
-ROAD_WIDTH = 800
+LANES = 3
+ROAD_WIDTH = 600
 ROAD_LEFT = (WIDTH - ROAD_WIDTH) // 2
 ROAD_RIGHT = ROAD_LEFT + ROAD_WIDTH
 LANE_W = ROAD_WIDTH // LANES
@@ -91,8 +91,8 @@ class Car(CarStats):
             position=position_m,
             speed=kmh_to_mps(speed_kmh),
             speed_limit=kmh_to_mps(speed_limit_kmh),
-            acceleration=8.0 + random.uniform(-4, 4),     # m/s^2 (tuned for sane feel)
-            deceleration=-12.0 + random.uniform(-4, 4),   # m/s^2
+            acceleration=4.0 + random.uniform(-1, 1),     # m/s^2 (tuned for sane feel)
+            deceleration=-8.0 + random.uniform(-1, 1),   # m/s^2
             laneCount=LANES,
             length=CAR_H
         )
@@ -105,7 +105,8 @@ class Car(CarStats):
     def draw(self, screen, camera_y_m):
         screen_y = HEIGHT - (self.position - camera_y_m)
         screen.blit(self.sprite, (self.x(), screen_y))
-        pygame.draw.rect(screen, (255, 0, 0), (self.x(), screen_y - self.get_stopping_distance(), 10, self.get_stopping_distance()))
+        pygame.draw.rect(screen, (255, 0, 0), (self.x(), screen_y - self.get_stopping_distance(), CAR_W//2, self.get_stopping_distance()))
+        pygame.draw.rect(screen, (0, 0, 255), (self.x()+CAR_W//2, screen_y - self.speed, 10, self.speed))
 
 class SpeedSign:
     def __init__(self, position, limit_kmh):
@@ -158,7 +159,21 @@ def spawn_traffic(sheet, start_y_m, player_speed_limit_kmh, count=6):
     player_sprite = sheet.get_scaled("lambo", (CAR_W, CAR_H))
     player = Car(lane=1, position_m=start_y_m, speed_kmh=120.0, speed_limit_kmh=player_speed_limit_kmh, sprite=player_sprite)
 
-    # Track last placed position per lane to avoid overlaps
+    max_count = HEIGHT/(CAR_H*2)*LANES
+    count = min(count, max_count)
+
+    position_function = lambda x: x // LANES * (CAR_H*2)
+    lane_function = lambda x: x % LANES
+    possibilities = [x for x in range(int(max_count))]
+    random.shuffle(possibilities)
+    for x in possibilities[0:count]:
+        sprite_name = random.choice(ATLAS_KEYS)
+        traffic_sprite = sheet.get_scaled(sprite_name, (CAR_W, CAR_H))
+        spd = random.uniform(0.65, 0.9) * player_speed_limit_kmh
+        Car(lane=lane_function(x), position_m=position_function(x), speed_kmh=spd, speed_limit_kmh=player_speed_limit_kmh, sprite=traffic_sprite)
+
+
+    '''# Track last placed position per lane to avoid overlaps
     last_pos_by_lane = [start_y_m + 80.0 for _ in range(LANES)]
     min_gap = CAR_H + 35.0  # meters (tuned spacing)
 
@@ -170,13 +185,12 @@ def spawn_traffic(sheet, start_y_m, player_speed_limit_kmh, count=6):
         pos = lane_base + random.uniform(min_gap, min_gap + 160.0)
         last_pos_by_lane[lane] = pos
 
-        sprite_name = random.choice(ATLAS_KEYS)
-        traffic_sprite = sheet.get_scaled(sprite_name, (CAR_W, CAR_H))
+        
 
         # Start traffic at some reasonable speed (near limit, with a little variation)
-        spd = random.uniform(0.65, 0.9) * player_speed_limit_kmh
-        traffic = Car(lane=lane, position_m=pos, speed_kmh=spd, speed_limit_kmh=player_speed_limit_kmh, sprite=traffic_sprite)
-
+        
+    '''
+    print(len(cars))
     return player
 
 def main():
@@ -194,7 +208,7 @@ def main():
     finished = False
 
     # Build player + traffic (player returned; all cars stored in global cars list)
-    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=13)
+    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=20)
     cars[1].lane = 1
     cars[1].speed_preference = -20
     #cars[2].lane = 0

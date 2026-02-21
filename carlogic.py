@@ -46,8 +46,8 @@ class CarLogic:
       self_back = self.position + self.length
       self_front = self.position - car.get_stopping_distance()
       
-      overlap_front = car.position > self.position and self_front < car_front < self_back
-      overlap_back = car.position < self.position and car_front < self_front < car_back
+      overlap_front = self_front < car_front < self_back
+      overlap_back = car_front < self_front < car_back
 
       if lane_diff == 0 and overlap_front: params["car_front"] = True
       if lane_diff == -1 and (overlap_front or overlap_back): params["car_left"] = True
@@ -57,8 +57,6 @@ class CarLogic:
   def update(self, dt):
     params = self.analyze_traffic()
     if params["car_front"]:
-      if self.id == 0:
-        print("my name is player car and i am tailgaiting")
       if not params["car_left"] and self.lane > 0:
         self.intent = Intent.LANE_CHANGE_LEFT
       elif not params["car_right"] and self.lane < self.laneCount - 1:
