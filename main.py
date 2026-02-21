@@ -332,22 +332,22 @@ def run_simulation(sheet, num_traffic=6, speed_limit_kmh=120.0):
     dt = (dt_base * SIM_SPEED) / SUB_STEPS
 
     print(cars)
-    while player.position < 1000:
+    while any(c.position < 1000 for c in cars):
         for c in cars:
             # apply signs
             latest_limit_kmh = None
             for sign in signs:
                 if sign.position <= c.position:
                     latest_limit_kmh = sign.limit_kmh
-                else:
-                    break
+                #else:
+                #    break
             if latest_limit_kmh is not None:
                 c.speedLimit = kmh_to_mps(latest_limit_kmh)
 
             c.update(dt)
             c.position += c.speed * dt
 
-    return [(c.id, c.elapsed_time, c.finished) for c in cars]
+    return [(c.id, c.elapsed_time, c.position >= 1000) for c in cars]
 
 
 def run_monte_carlo(sheet, num_runs=100):
