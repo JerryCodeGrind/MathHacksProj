@@ -48,7 +48,7 @@ class CarLogic:
       if lane_diff == -1 and (too_close_to_front or too_close_to_back): params["car_right"] = True
     return params
 
-  def update(self):
+  def update(self, dt):
     params = self.analyze_traffic()
     if params["car_front"]:
       if not params["car_left"] and self.lane < self.laneCount - 1:
@@ -65,15 +65,15 @@ class CarLogic:
     
     match self.intent:
       case Intent.ACCELERATE:
-        self.speed += self.acceleration
+        self.speed += self.acceleration * dt
       case Intent.DECELERATE:
-        self.speed += self.deceleration
+        self.speed += self.deceleration * dt
         if self.speed < 0: self.speed = 0
       case Intent.LANE_CHANGE_LEFT:
         self.lane += 1
       case Intent.LANE_CHANGE_RIGHT:
         self.lane -= 1
     
-    self.position += self.speed
+    self.position += self.speed * dt
 
 cars = []
