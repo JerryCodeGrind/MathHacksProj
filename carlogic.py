@@ -17,7 +17,7 @@ class CarLogic:
     cars.append(self)
     self.intent = Intent.CRUISE
 
-  def set_properties(self, position=0, speed=0, speedLimit=0, acceleration=0, deceleration=0, lane=0, laneCount=1, length=0):
+  def set_properties(self, position=0, speed=0, speed_limit=0, acceleration=0, deceleration=0, lane=0, laneCount=1, length=0):
     self.position = position
     self.speed = speed
     self.speedLimit = speedLimit
