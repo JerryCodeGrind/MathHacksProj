@@ -1,13 +1,15 @@
 import pygame
+import math
 import random
 import sys
 from sheets import SpriteSheet
 from sheets import ATLAS_KEYS
 from carstats import CarStats, cars
+import matplotlib
 
-WIDTH, HEIGHT = 400, 800
+WIDTH, HEIGHT = 700, 800
 FPS = 60
-SIM_SPEED = 20
+SIM_SPEED = 1
 all_run_results = []
 
 LANES = 3
@@ -21,6 +23,56 @@ ROAD_COLOR = (30, 30, 30)
 LINE_COLOR = (235, 235, 235)
 
 CAR_W, CAR_H = 22, 40
+
+SPEEDO_CENTER = (80, 680)  # left side, near bottom
+SPEEDO_RADIUS = 60
+SPEEDO_MAX_SPEED = 300  # km/h
+
+def speed_to_angle(speed, max_speed=300):
+    angle = 225 - (speed / max_speed) * 270
+    return math.radians(angle)
+
+def draw_speedometer(surface, speed_kmh, center, radius, max_speed, font):
+    pygame.draw.circle(surface, (60, 60, 60), center, radius + 4)
+    pygame.draw.circle(surface, (10, 10, 10), center, radius)
+    pygame.draw.circle(surface, (180, 180, 180), center, radius, 2)
+
+    for s in range(0, max_speed + 1, 20):
+        angle = speed_to_angle(s, max_speed)
+        is_major = s % 60 == 0
+        tick_len = 5 if is_major else 2
+
+        outer = (center[0] + (radius - 2) * math.cos(angle),
+                 center[1] - (radius - 2) * math.sin(angle))
+        inner = (center[0] + (radius - 2 - tick_len) * math.cos(angle),
+                 center[1] - (radius - 2 - tick_len) * math.sin(angle))
+
+        color = (255, 255, 255) if is_major else (150, 150, 150)
+        pygame.draw.line(surface, color, outer, inner, 1)
+
+        if is_major:
+            label_r = radius - 12
+            lx = center[0] + label_r * math.cos(angle)
+            ly = center[1] - label_r * math.sin(angle)
+            text = font.render(str(s), True, (255, 255, 255))
+            rect = text.get_rect(center=(lx, ly))
+            surface.blit(text, rect)
+
+    # Needle based on actual player speed
+    needle_angle = speed_to_angle(min(speed_kmh, max_speed), max_speed)
+    needle_len = radius - 8
+    nx = center[0] + needle_len * math.cos(needle_angle)
+    ny = center[1] - needle_len * math.sin(needle_angle)
+    for w in range(3, 0, -1):
+        pygame.draw.line(surface, (255, 80 + w * 15, 50), center, (nx, ny), w)
+
+    # Center cap
+    pygame.draw.circle(surface, (220, 50, 50), center, 4)
+    pygame.draw.circle(surface, (255, 255, 255), center, 2)
+
+    # Speed number
+    spd_text = font.render(f"{int(speed_kmh)}", True, (255, 255, 255))
+    surface.blit(spd_text, spd_text.get_rect(center=(center[0], center[1] + 16)))
 
 # --- Units ---
 # World distance is in METERS.
@@ -264,6 +316,8 @@ def main():
         for c in cars:
             c.draw(screen, camera_y_m)
 
+        speed_kmh = mps_to_kmh(player_car.speed)
+
         pygame.display.flip()
 
     pygame.quit()
@@ -325,7 +379,7 @@ def run_monte_carlo(sheet, num_runs=100):
 
 
 def analyze_results(all_run_results, time_threshold=25.0):
-    # Flatten: for each car id, collect all their times across runs
+    import matplotlib.pyplot as plt
     from collections import defaultdict
     times_by_car = defaultdict(list)
     
@@ -334,11 +388,41 @@ def analyze_results(all_run_results, time_threshold=25.0):
             if finished:
                 times_by_car[car_id].append(elapsed)
     
+    # Flatten all times across all cars for the histogram
+    all_times = [t for times in times_by_car.values() for t in times]
+    total_entries = len(all_times)
+    under_threshold = sum(1 for t in all_times if t < time_threshold)
+    prob_under = under_threshold / total_entries * 100 if total_entries > 0 else 0
+
     print(f"\n==== MONTE CARLO RESULTS ({len(all_run_results)} runs) ====")
     for car_id, times in sorted(times_by_car.items()):
         avg = sum(times) / len(times)
         pct_under = sum(1 for t in times if t < time_threshold) / len(times) * 100
-        print(f"Car #{car_id}: avg={avg:.2f}s  % runs under {time_threshold}s: {pct_under:.1f}%")
+        runs_str = "  |  ".join(f"run{i+1}: {t:.2f}s" for i, t in enumerate(times))
+        print(f"Car #{car_id}: avg={avg:.2f}s  % under {time_threshold}s: {pct_under:.1f}%  [{runs_str}]")
+
+    print(f"\nProbability of finishing under {time_threshold}s: {prob_under:.1f}%")
+
+    # Histogram — floor each time to nearest second for bucketing
+    import math
+    bucketed = [math.floor(t) for t in all_times]
+    counts = defaultdict(int)
+    for b in bucketed:
+        counts[b] += 1
+
+    seconds = sorted(counts.keys())
+    freqs = [counts[s] for s in seconds]
+
+    plt.figure(figsize=(10, 5))
+    bars = plt.bar(seconds, freqs, color=["red" if s >= time_threshold else "steelblue" for s in seconds], edgecolor="black", width=0.8)
+    plt.axvline(x=time_threshold, color="red", linestyle="--", linewidth=1.5, label=f"Threshold: {time_threshold}s")
+    plt.xlabel("Finish Time (s)")
+    plt.ylabel("Count")
+    plt.title(f"Finish Time Distribution ({len(all_run_results)} runs, {len(all_times)} total finishes)")
+    plt.legend()
+    plt.xticks(seconds)
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
     mode = input("Run mode? [sim/monte]: ").strip().lower()
