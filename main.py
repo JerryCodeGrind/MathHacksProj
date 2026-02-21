@@ -26,19 +26,16 @@ CAR_W, CAR_H = 22, 40
 def kmh_to_mps(kmh: float) -> float:
     return kmh * 1000.0 / 3600.0
 
-def mps_to_kmh(mps: float) -> float:
-    return mps / 1000.0 * 3600.0
-
 def m_to_km(m: float) -> float:
     return m / 1000.0
 
 class Car(CarLogic):
-    def __init__(self, lane, world_y_m, speed_kmh, speed_limit, sprite):
+    def __init__(self, lane, world_y_m, speed, speed_limit, sprite):
         super().__init__()
         self.set_properties(
             lane=lane,
             position=world_y_m,
-            speed=kmh_to_mps(speed_kmh),
+            speed=kmh_to_mps(speed),
             speed_limit=kmh_to_mps(speed_limit),
             acceleration=10,
             deceleration=-20,
@@ -121,7 +118,7 @@ def main():
     # --- Player car: controls camera + triggers speed signs ---
         # Player car (pick a specific sprite if you want, or random too)
     player_sprite = sheet.get_scaled("lambo", (CAR_W, CAR_H))
-    player_car = Car(lane=1, world_y_m=START_Y_M, speed_kmh=240.0, speed_limit=120.0, sprite=player_sprite)
+    player_car = Car(lane=1, world_y_m=START_Y_M, speed=240.0, speed_limit=120.0, sprite=player_sprite)
 
     number_of_cars = 5
 
@@ -134,7 +131,7 @@ def main():
             Car(
                 lane=lane,
                 world_y_m=START_Y_M,
-                speed_kmh=player_car.speed_kmh,
+                speed=player_car.speed,
                 speed_limit=120,
                 sprite=traffic_sprite
             )
@@ -142,7 +139,7 @@ def main():
     
 
     for i, c in enumerate(cars):
-        print(f"Car {i}: lane={c.lane}, speed={c.speed_kmh}, y={c.world_y_m}, sprite={c.sprite}")
+        print(f"Car {i}: lane={c.lane}, speed={c.speed}, y={c.world_y_m}, sprite={c.sprite}")
 
     # Camera in meters
     camera_y_m = 0.0
@@ -171,7 +168,7 @@ def main():
 
             # Keep all cars exactly same speed as player (no variation)
             for c in cars:
-                c.speed_kmh = player_car.speed_kmh
+                c.speed = player_car.speed
                 c.update(dt, moving=True)
 
             # Camera follows player (same "movement" as player)
@@ -184,7 +181,7 @@ def main():
 
             # Apply sign speed to player (KM/H), once we pass each sign
             while sign_index < len(signs) and player_car.world_y_m >= signs[sign_index].world_y_m:
-                player_car.speed_kmh = float(signs[sign_index].limit_kmh)
+                player_car.speed = float(signs[sign_index].limit_kmh)
                 sign_index += 1
 
             # End condition: travelled 1km
@@ -203,7 +200,7 @@ def main():
 
         # UI info
         distance_m = max(0.0, player_car.world_y_m - START_Y_M)
-        info1 = font.render(f"Speed: {int(player_car.speed_kmh)} km/h", True, (255, 255, 255))
+        info1 = font.render(f"Speed: {int(player_car.speed)} km/h", True, (255, 255, 255))
         info2 = font.render(f"Distance: {distance_m:.1f} m / 1000.0 m", True, (255, 255, 255))
         screen.blit(info1, (10, 10))
         screen.blit(info2, (10, 25))
