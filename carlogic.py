@@ -29,7 +29,7 @@ class CarLogic:
     self.length = length
   
   def get_stopping_distance(self):
-    return -self.velocity**2/(2*self.deceleration)
+    return -self.speed**2/(2*self.deceleration)
 
   def analyze_traffic(self):
     params = {
@@ -46,7 +46,7 @@ class CarLogic:
       if lane_diff == 0 and too_close_to_front: params["car_front"] = True
       if lane_diff == 1 and (too_close_to_front or too_close_to_back): params["car_left"] = True
       if lane_diff == -1 and (too_close_to_front or too_close_to_back): params["car_right"] = True
-    return False
+    return params
 
   def update(self):
     params = self.analyze_traffic()
@@ -68,6 +68,7 @@ class CarLogic:
         self.speed += self.acceleration
       case Intent.DECELERATE:
         self.speed += self.deceleration
+        if self.speed < 0: self.speed = 0
       case Intent.LANE_CHANGE_LEFT:
         self.lane += 1
       case Intent.LANE_CHANGE_RIGHT:
