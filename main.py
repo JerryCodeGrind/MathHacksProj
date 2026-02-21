@@ -16,7 +16,7 @@ SPEEDO_CENTER = (80, 680)  # left side, near bottom
 SPEEDO_RADIUS = 60
 SPEEDO_MAX_SPEED = 300  # km/h
 
-LANES = 3
+LANES = 5
 ROAD_WIDTH = 600
 ROAD_LEFT = (WIDTH - ROAD_WIDTH) // 2
 ROAD_RIGHT = ROAD_LEFT + ROAD_WIDTH
@@ -91,8 +91,8 @@ class Car(CarStats):
             position=position_m,
             speed=kmh_to_mps(speed_kmh),
             speed_limit=kmh_to_mps(speed_limit_kmh),
-            acceleration=4.0 + random.uniform(-1, 1),     # m/s^2 (tuned for sane feel)
-            deceleration=-8.0 + random.uniform(-1, 1),   # m/s^2
+            acceleration=6.0 + random.uniform(-2, 2),     # m/s^2 (tuned for sane feel)
+            deceleration=-9.0 + random.uniform(-2, 2),   # m/s^2
             laneCount=LANES,
             length=CAR_H
         )
@@ -106,7 +106,7 @@ class Car(CarStats):
         screen_y = HEIGHT - (self.position - camera_y_m)
         screen.blit(self.sprite, (self.x(), screen_y))
         pygame.draw.rect(screen, (255, 0, 0), (self.x(), screen_y - self.get_stopping_distance(), CAR_W//2, self.get_stopping_distance()))
-        pygame.draw.rect(screen, (0, 0, 255), (self.x()+CAR_W//2, screen_y - self.speed, 10, self.speed))
+        pygame.draw.rect(screen, (0, 255, 0), (self.x()+CAR_W//2, screen_y - self.speed, 10, self.speed))
 
 class SpeedSign:
     def __init__(self, position, limit_kmh):
@@ -190,7 +190,6 @@ def spawn_traffic(sheet, start_y_m, player_speed_limit_kmh, count=6):
         # Start traffic at some reasonable speed (near limit, with a little variation)
         
     '''
-    print(len(cars))
     return player
 
 def main():
@@ -209,10 +208,7 @@ def main():
 
     # Build player + traffic (player returned; all cars stored in global cars list)
     player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=20)
-    cars[1].lane = 1
-    cars[1].speed_preference = -20
-    #cars[2].lane = 0
-    #cars[2].speed_preference = -15
+    player_car.speed_preference = 0
 
     # Camera in meters
     camera_y_m = 0.0
@@ -335,27 +331,21 @@ def run_simulation(sheet, num_traffic=6, speed_limit_kmh=120.0):
     dt_base = 1.0 / 60.0  # simulate at 60fps timestep regardless of wall clock
     dt = (dt_base * SIM_SPEED) / SUB_STEPS
 
-    while True:
-        for _ in range(SUB_STEPS):
-            for c in cars:
-                # apply signs
-                latest_limit_kmh = None
-                for sign in signs:
-                    if sign.position <= c.position:
-                        latest_limit_kmh = sign.limit_kmh
-                    else:
-                        break
-                if latest_limit_kmh is not None:
-                    c.speedLimit = kmh_to_mps(latest_limit_kmh)
+    print(cars)
+    while player.position < 1000:
+        for c in cars:
+            # apply signs
+            latest_limit_kmh = None
+            for sign in signs:
+                if sign.position <= c.position:
+                    latest_limit_kmh = sign.limit_kmh
+                else:
+                    break
+            if latest_limit_kmh is not None:
+                c.speedLimit = kmh_to_mps(latest_limit_kmh)
 
-                if not c.finished:
-                    c.update(dt)
-                    if c.position >= END_Y_M:
-                        c.finished = True
-                        c.speed = 0.0
-
-        if all(c.finished for c in cars):
-            break
+            c.update(dt)
+            c.position += c.speed * dt
 
     return [(c.id, c.elapsed_time, c.finished) for c in cars]
 
