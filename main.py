@@ -37,8 +37,8 @@ class Car(CarLogic):
             position=position_m,
             speed=kmh_to_mps(speed_kmh),
             speed_limit=kmh_to_mps(speed_limit_kmh),
-            acceleration=12.0,     # m/s^2 (tuned for sane feel)
-            deceleration=-18.0,   # m/s^2
+            acceleration=12.0 + random.uniform(-6, 6),     # m/s^2 (tuned for sane feel)
+            deceleration=-18.0 + random.uniform(-6, 6),   # m/s^2
             laneCount=LANES,
             length=CAR_H
         )
@@ -51,6 +51,7 @@ class Car(CarLogic):
     def draw(self, screen, camera_y_m):
         screen_y = HEIGHT - (self.position - camera_y_m)
         screen.blit(self.sprite, (self.x(), screen_y))
+        pygame.draw.rect(screen, (255, 0, 0), (self.x() - 5, screen_y - self.get_stopping_distance(), 10, self.get_stopping_distance()))
 
 class SpeedSign:
     def __init__(self, position, limit_kmh):
@@ -108,11 +109,11 @@ def spawn_traffic(sheet, start_y_m, player_speed_limit_kmh, count=6):
     min_gap = CAR_H + 35.0  # meters (tuned spacing)
 
     for _ in range(count):
-        lane = random.randrange(LANES)
+        lane = random.randint(0, LANES - 1)
 
         # place this car ahead of the last one in that lane
         lane_base = last_pos_by_lane[lane]
-        pos = lane_base + random.uniform(min_gap, min_gap + 80.0)
+        pos = lane_base + random.uniform(min_gap, min_gap + 160.0)
         last_pos_by_lane[lane] = pos
 
         sprite_name = random.choice(ATLAS_KEYS)
@@ -139,7 +140,7 @@ def main():
     finished = False
 
     # Build player + traffic (player returned; all cars stored in global cars list)
-    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=2)
+    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=6)
 
     # Camera in meters
     camera_y_m = 0.0
@@ -179,6 +180,7 @@ def main():
                     c.speed_limit = kmh_to_mps(sign.limit_kmh)
                 
                 c.update(dt)
+                c.position += c.speed * dt
 
 
             # Camera follows player
@@ -189,7 +191,7 @@ def main():
                 finished = True
                 moving = False
             
-            print(f"{cars[1].intent} {mps_to_kmh(cars[1].speed)} {mps_to_kmh(cars[1].speed_limit)}")
+            #print(f"{cars[1].intent} {mps_to_kmh(cars[1].speed)} {mps_to_kmh(cars[1].speed_limit)}")
 
         # Draw world + signs
         draw_world(screen, signs, camera_y_m, font)
