@@ -26,6 +26,9 @@ CAR_W, CAR_H = 22, 40
 def kmh_to_mps(kmh: float) -> float:
     return kmh * 1000.0 / 3600.0
 
+def mps_to_kmh(mps: float) -> float:
+    return mps / 1000.0 * 3600.0
+
 def m_to_km(m: float) -> float:
     return m / 1000.0
 
