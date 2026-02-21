@@ -6,7 +6,7 @@ from sheets import SpriteSheet
 from sheets import ATLAS_KEYS
 from carstats import CarStats, cars
 
-WIDTH, HEIGHT = 700, 800
+WIDTH, HEIGHT = 1400, 800
 FPS = 60
 
 SIM_SPEED = 1
@@ -16,8 +16,8 @@ SPEEDO_CENTER = (80, 680)  # left side, near bottom
 SPEEDO_RADIUS = 60
 SPEEDO_MAX_SPEED = 300  # km/h
 
-LANES = 3
-ROAD_WIDTH = 260
+LANES = 5
+ROAD_WIDTH = 800
 ROAD_LEFT = (WIDTH - ROAD_WIDTH) // 2
 ROAD_RIGHT = ROAD_LEFT + ROAD_WIDTH
 LANE_W = ROAD_WIDTH // LANES
@@ -91,8 +91,8 @@ class Car(CarStats):
             position=position_m,
             speed=kmh_to_mps(speed_kmh),
             speed_limit=kmh_to_mps(speed_limit_kmh),
-            acceleration=12.0 + random.uniform(-6, 6),     # m/s^2 (tuned for sane feel)
-            deceleration=-24.0 + random.uniform(-6, 6),   # m/s^2
+            acceleration=8.0 + random.uniform(-4, 4),     # m/s^2 (tuned for sane feel)
+            deceleration=-12.0 + random.uniform(-4, 4),   # m/s^2
             laneCount=LANES,
             length=CAR_H
         )
@@ -141,8 +141,8 @@ class Button:
 def draw_world(screen, signs, camera_y_m, font):
     screen.fill(GRASS_COLOR)
     pygame.draw.rect(screen, ROAD_COLOR, (ROAD_LEFT, 0, ROAD_WIDTH, HEIGHT))
-    pygame.draw.line(screen, LINE_COLOR, (ROAD_LEFT + LANE_W, 0), (ROAD_LEFT + LANE_W, HEIGHT), 2)
-    pygame.draw.line(screen, LINE_COLOR, (ROAD_LEFT + 2 * LANE_W, 0), (ROAD_LEFT + 2 * LANE_W, HEIGHT), 2)
+    for i in range(1, LANES):
+        pygame.draw.line(screen, LINE_COLOR, (ROAD_LEFT + i * LANE_W, 0), (ROAD_LEFT + i * LANE_W, HEIGHT), 2)
 
     for s in signs:
         s.draw(screen, camera_y_m, font)
@@ -179,7 +179,7 @@ def spawn_traffic(sheet, start_y_m, player_speed_limit_kmh, count=6):
 
     return player
 
-def main():
+def main(num_cars=13, speed_limit=120.0):
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     clock = pygame.time.Clock()
@@ -187,14 +187,14 @@ def main():
     sheet = SpriteSheet("cars.png")
 
     START_Y_M = 0.0
-    END_Y_M = START_Y_M + 1000.0
+    END_Y_M = START_Y_M + 10000.0
 
     start_button = Button((10, 40, 110, 32), "START")
     moving = False
     finished = False
 
     # Build player + traffic (player returned; all cars stored in global cars list)
-    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=1)
+    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=13)
     cars[1].lane = 1
     cars[1].speed_preference = -20
     #cars[2].lane = 0
@@ -295,7 +295,7 @@ def main():
         draw_speedometer(screen, mps_to_kmh(player_car.speed), (110, 680), 90, 300, font)
 
         label = font.render("Player Speed", True, (255, 255, 255))
-        screen.blit(label, (110 - label.get_width() // 2, 578))
+        screen.blit(label, (110 - label.get_width() // 2, 540))
 
         pygame.display.flip()
 
@@ -403,15 +403,142 @@ def analyze_results(all_run_results, time_threshold=25.0):
     plt.tight_layout()
     plt.show()
 
+def input_box(screen, font, label, value, active, rect):
+    color = (255, 255, 255) if active else (150, 150, 150)
+    pygame.draw.rect(screen, (40, 40, 40), rect, border_radius=6)
+    pygame.draw.rect(screen, color, rect, 2, border_radius=6)
+    txt = font.render(value, True, (255, 255, 255))
+    screen.blit(txt, (rect.x + 8, rect.y + (rect.height - txt.get_height()) // 2))
+    lbl = font.render(label, True, (200, 200, 200))
+    screen.blit(lbl, (rect.x, rect.y - 18))
+
+def start_screen():
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Racing Sim")
+    clock = pygame.time.Clock()
+    font = pygame.font.SysFont(None, 20)
+    font_large = pygame.font.SysFont(None, 40)
+    font_title = pygame.font.SysFont(None, 60)
+
+    # Mode selection
+    mode = None  # "sim" or "monte"
+
+    # Input fields: (label, value, rect)
+    fields = {
+        "sim": [
+            ["Num Cars", "13", pygame.Rect(WIDTH//2 - 100, 380, 200, 32)],
+            ["Num Lanes", "5",  pygame.Rect(WIDTH//2 - 100, 450, 200, 32)],
+            ["Speed Limit (km/h)", "120", pygame.Rect(WIDTH//2 - 100, 520, 200, 32)],
+        ],
+        "monte": [
+            ["Num Runs", "100",  pygame.Rect(WIDTH//2 - 100, 380, 200, 32)],
+            ["Time Threshold (s)", "25", pygame.Rect(WIDTH//2 - 100, 450, 200, 32)],
+            ["Num Cars", "6",   pygame.Rect(WIDTH//2 - 100, 520, 200, 32)],
+            ["Speed Limit (km/h)", "120", pygame.Rect(WIDTH//2 - 100, 590, 200, 32)],
+        ]
+    }
+
+    active_field = None
+
+    sim_btn   = Button((WIDTH//2 - 220, 260, 200, 50), "SIMULATION")
+    monte_btn = Button((WIDTH//2 + 20,  260, 200, 50), "MONTE CARLO")
+    start_btn = Button((WIDTH//2 - 80,  670, 160, 44), "START")
+
+    running = True
+    while running:
+        clock.tick(60)
+        screen.fill((20, 20, 30))
+
+        # Title
+        title = font_title.render("Racing Simulator", True, (255, 255, 255))
+        screen.blit(title, (WIDTH//2 - title.get_width()//2, 120))
+
+        subtitle = font.render("Choose a mode to begin", True, (160, 160, 160))
+        screen.blit(subtitle, (WIDTH//2 - subtitle.get_width()//2, 185))
+
+        # Mode buttons
+        sim_btn.draw(screen, font, enabled=True)
+        monte_btn.draw(screen, font, enabled=True)
+
+        # Highlight selected mode
+        if mode == "sim":
+            pygame.draw.rect(screen, (0, 220, 120), sim_btn.rect, 3, border_radius=8)
+        elif mode == "monte":
+            pygame.draw.rect(screen, (0, 220, 120), monte_btn.rect, 3, border_radius=8)
+
+        # Input fields for selected mode
+        if mode:
+            header = font_large.render("Settings", True, (220, 220, 220))
+            screen.blit(header, (WIDTH//2 - header.get_width()//2, 330))
+
+            for i, (label, value, rect) in enumerate(fields[mode]):
+                input_box(screen, font, label, value, active_field == i, rect)
+
+            start_btn.draw(screen, font)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if sim_btn.hit(event.pos):
+                    mode = "sim"
+                    active_field = None
+                elif monte_btn.hit(event.pos):
+                    mode = "monte"
+                    active_field = None
+                elif mode and start_btn.hit(event.pos):
+                    # Parse and return values
+                    vals = [f[1] for f in fields[mode]]
+                    if mode == "sim":
+                        return "sim", {
+                            "num_cars":    int(vals[0]),
+                            "num_lanes":   int(vals[1]),
+                            "speed_limit": float(vals[2]),
+                        }
+                    else:
+                        return "monte", {
+                            "num_runs":    int(vals[0]),
+                            "threshold":   float(vals[1]),
+                            "num_cars":    int(vals[2]),
+                            "speed_limit": float(vals[3]),
+                        }
+                else:
+                    # Check if clicking an input field
+                    active_field = None
+                    if mode:
+                        for i, (label, value, rect) in enumerate(fields[mode]):
+                            if rect.collidepoint(event.pos):
+                                active_field = i
+
+            if event.type == pygame.KEYDOWN and active_field is not None and mode:
+                label, value, rect = fields[mode][active_field]
+                if event.key == pygame.K_BACKSPACE:
+                    fields[mode][active_field][1] = value[:-1]
+                elif event.key == pygame.K_TAB:
+                    active_field = (active_field + 1) % len(fields[mode])
+                elif event.unicode.isdigit() or event.unicode == ".":
+                    fields[mode][active_field][1] = value + event.unicode
+
+        pygame.display.flip()
+
 if __name__ == "__main__":
-    mode = input("Run mode? [sim/monte]: ").strip().lower()
-    if mode == "monte":
-        num_runs = int(input("How many runs? "))
-        threshold = float(input("Time threshold (seconds)? "))
+    mode, params = start_screen()
+
+    if mode == "sim":
+        LANES = params["num_lanes"]
+        NUM_CARS = params["num_cars"]
+        ROAD_WIDTH = LANES * 160
+        ROAD_LEFT = (WIDTH - ROAD_WIDTH) // 2
+        ROAD_RIGHT = ROAD_LEFT + ROAD_WIDTH
+        LANE_W = ROAD_WIDTH // LANES
+        main(num_cars=params["num_cars"], speed_limit=params["speed_limit"])
+
+    elif mode == "monte":
         pygame.init()
-        pygame.display.set_mode((1, 1))  # dummy window, needed for image loading
+        pygame.display.set_mode((1, 1))
         sheet = SpriteSheet("cars.png")
-        results = run_monte_carlo(sheet, num_runs=num_runs)
-        analyze_results(results, time_threshold=threshold)
-    else:
-        main()
+        results = run_monte_carlo(sheet, num_runs=params["num_runs"], num_traffic=params["num_cars"])
+        analyze_results(results, time_threshold=params["threshold"])

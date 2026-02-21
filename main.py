@@ -295,7 +295,7 @@ def main():
         draw_speedometer(screen, mps_to_kmh(player_car.speed), (110, 680), 90, 300, font)
 
         label = font.render("Player Speed", True, (255, 255, 255))
-        screen.blit(label, (110 - label.get_width() // 2, 578))
+        screen.blit(label, (110 - label.get_width() // 2, 540))
 
         pygame.display.flip()
 
