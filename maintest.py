@@ -3,10 +3,12 @@ import random
 import sys
 from sheets import SpriteSheet
 from sheets import ATLAS_KEYS
-from carlogic import CarLogic, cars
+from carstats import CarStats, cars
 
 WIDTH, HEIGHT = 400, 800
 FPS = 60
+SIM_SPEED = 20
+all_run_results = []
 
 LANES = 3
 ROAD_WIDTH = 260
@@ -29,7 +31,7 @@ def kmh_to_mps(kmh: float) -> float:
 def mps_to_kmh(x: float) -> float:
     return x / 1000.0 * 3600.0
 
-class Car(CarLogic):
+class Car(CarStats):
     def __init__(self, lane, position_m, speed_kmh, speed_limit_kmh, sprite):
         super().__init__()
         self.set_properties(
@@ -37,8 +39,8 @@ class Car(CarLogic):
             position=position_m,
             speed=kmh_to_mps(speed_kmh),
             speed_limit=kmh_to_mps(speed_limit_kmh),
-            acceleration=12.0 + random.uniform(-6, 6),     # m/s^2 (tuned for sane feel)
-            deceleration=-18.0 + random.uniform(-6, 6),   # m/s^2
+            acceleration=12.0,     # m/s^2 (tuned for sane feel)
+            deceleration=-18.0,   # m/s^2
             laneCount=LANES,
             length=CAR_H
         )
@@ -51,7 +53,6 @@ class Car(CarLogic):
     def draw(self, screen, camera_y_m):
         screen_y = HEIGHT - (self.position - camera_y_m)
         screen.blit(self.sprite, (self.x(), screen_y))
-        pygame.draw.rect(screen, (255, 0, 0), (self.x() - 5, screen_y - self.get_stopping_distance(), 10, self.get_stopping_distance()))
 
 class SpeedSign:
     def __init__(self, position, limit_kmh):
@@ -109,11 +110,11 @@ def spawn_traffic(sheet, start_y_m, player_speed_limit_kmh, count=6):
     min_gap = CAR_H + 35.0  # meters (tuned spacing)
 
     for _ in range(count):
-        lane = random.randint(0, LANES - 1)
+        lane = random.randrange(LANES)
 
         # place this car ahead of the last one in that lane
         lane_base = last_pos_by_lane[lane]
-        pos = lane_base + random.uniform(min_gap, min_gap + 160.0)
+        pos = lane_base + random.uniform(min_gap, min_gap + 80.0)
         last_pos_by_lane[lane] = pos
 
         sprite_name = random.choice(ATLAS_KEYS)
@@ -140,7 +141,7 @@ def main():
     finished = False
 
     # Build player + traffic (player returned; all cars stored in global cars list)
-    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=6)
+    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=2)
 
     # Camera in meters
     camera_y_m = 0.0
@@ -152,6 +153,7 @@ def main():
     running = True
     while running:
         dt = clock.tick(FPS) / 1000.0
+        dt *= SIM_SPEED
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -175,13 +177,24 @@ def main():
 
             # Update all cars with dt-based physics
             for c in cars:
+                # Apply the latest speed sign behind this car
+                latest_limit_kmh = None
                 for sign in signs:
-                    if sign.position > c.position: continue
-                    c.speed_limit = kmh_to_mps(sign.limit_kmh)
-                
-                c.update(dt)
-                c.position += c.speed * dt
+                    if sign.position <= c.position:
+                        latest_limit_kmh = sign.limit_kmh
+                    else:
+                        break
 
+                if latest_limit_kmh is not None:
+                    c.speedLimit = kmh_to_mps(latest_limit_kmh)
+
+                # Update only while not finished (so elapsed_time freezes)
+                if not c.finished:
+                    c.update(dt)
+
+                    if c.position >= END_Y_M:
+                        c.finished = True
+                        c.speed = 0.0  # optional: stop physically
 
             # Desired camera position (follow player)
             desired_camera_y = player_car.position - 120.0
@@ -196,12 +209,30 @@ def main():
                 finished = True
                 moving = False
 
-            # End condition
-            if player_car.position >= END_Y_M:
-                finished = True
-                moving = False
+                print("\n==== LEADERBOARD ====")
+
+                # Sort: finished cars by time, otherwise by distance
+                ordered = sorted(
+                    cars,
+                    key=lambda c: (
+                        0 if c.finished else 1,          # finished first
+                        c.elapsed_time if c.finished else float("inf"),
+                        -c.position                      # farther distance first
+                    )
+                )
+
+                for place, c in enumerate(ordered, start=1):
+                    status = "FIN" if c.finished else "DNF"
+                    print(
+                        f"{place:>2}. Car #{c.id:<2} {status} "
+                        f"time={c.elapsed_time:.3f}s "
+                        f"dist={c.position:.1f}m "
+                        f"max={mps_to_kmh(c.max_speed):.1f}km/h"
+                    )
+
+                print("=====================\n")
             
-            #print(f"{cars[1].intent} {mps_to_kmh(cars[1].speed)} {mps_to_kmh(cars[1].speed_limit)}")
+            print(f"{cars[1].intent} {mps_to_kmh(cars[1].speed)} {mps_to_kmh(cars[1].speed_limit)}")
 
         # Draw world + signs
         draw_world(screen, signs, camera_y_m, font)
@@ -238,5 +269,86 @@ def main():
     pygame.quit()
     sys.exit()
 
+def run_simulation(sheet, num_traffic=6, speed_limit_kmh=120.0):
+    """Run one full sim headless, return list of (car_id, elapsed_time, finished)"""
+    START_Y_M = 0.0
+    END_Y_M = 1000.0
+    
+    player = spawn_traffic(sheet, START_Y_M, speed_limit_kmh, count=num_traffic)
+    
+    # Build signs once
+    signs = []
+    next_sign_y = -150.0
+    while next_sign_y < END_Y_M:
+        signs.append(SpeedSign(next_sign_y, random.choice([120, 160, 200, 240, 280])))
+        next_sign_y += random.uniform(350, 450)
+
+    SIM_SPEED = 50.0
+    SUB_STEPS = 4
+    dt_base = 1.0 / 60.0  # simulate at 60fps timestep regardless of wall clock
+    dt = (dt_base * SIM_SPEED) / SUB_STEPS
+
+    while True:
+        for _ in range(SUB_STEPS):
+            for c in cars:
+                # apply signs
+                latest_limit_kmh = None
+                for sign in signs:
+                    if sign.position <= c.position:
+                        latest_limit_kmh = sign.limit_kmh
+                    else:
+                        break
+                if latest_limit_kmh is not None:
+                    c.speedLimit = kmh_to_mps(latest_limit_kmh)
+
+                if not c.finished:
+                    c.update(dt)
+                    if c.position >= END_Y_M:
+                        c.finished = True
+                        c.speed = 0.0
+
+        if all(c.finished for c in cars):
+            break
+
+    return [(c.id, c.elapsed_time, c.finished) for c in cars]
+
+
+def run_monte_carlo(sheet, num_runs=100):
+    all_run_results = []
+    
+    for i in range(num_runs):
+        results = run_simulation(sheet)
+        all_run_results.append(results)
+        print(f"Run {i+1}/{num_runs} done")
+    
+    return all_run_results
+
+
+def analyze_results(all_run_results, time_threshold=25.0):
+    # Flatten: for each car id, collect all their times across runs
+    from collections import defaultdict
+    times_by_car = defaultdict(list)
+    
+    for run in all_run_results:
+        for car_id, elapsed, finished in run:
+            if finished:
+                times_by_car[car_id].append(elapsed)
+    
+    print(f"\n==== MONTE CARLO RESULTS ({len(all_run_results)} runs) ====")
+    for car_id, times in sorted(times_by_car.items()):
+        avg = sum(times) / len(times)
+        pct_under = sum(1 for t in times if t < time_threshold) / len(times) * 100
+        print(f"Car #{car_id}: avg={avg:.2f}s  % runs under {time_threshold}s: {pct_under:.1f}%")
+
 if __name__ == "__main__":
-    main()
+    mode = input("Run mode? [sim/monte]: ").strip().lower()
+    if mode == "monte":
+        num_runs = int(input("How many runs? "))
+        threshold = float(input("Time threshold (seconds)? "))
+        pygame.init()
+        pygame.display.set_mode((1, 1))  # dummy window, needed for image loading
+        sheet = SpriteSheet("cars.png")
+        results = run_monte_carlo(sheet, num_runs=num_runs)
+        analyze_results(results, time_threshold=threshold)
+    else:
+        main()
