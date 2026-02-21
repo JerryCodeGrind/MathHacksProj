@@ -121,7 +121,7 @@ def main():
     # --- Player car: controls camera + triggers speed signs ---
         # Player car (pick a specific sprite if you want, or random too)
     player_sprite = sheet.get_scaled("lambo", (CAR_W, CAR_H))
-    player_car = Car(lane=1, world_y_m=START_Y_M, speed_kmh=240.0, sprite=player_sprite)
+    player_car = Car(lane=1, world_y_m=START_Y_M, speed_kmh=240.0, speed_limit=120.0, sprite=player_sprite)
 
     number_of_cars = 5
 
