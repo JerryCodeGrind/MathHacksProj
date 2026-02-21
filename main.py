@@ -235,12 +235,6 @@ def main():
                 signs.append(SpeedSign(next_sign_y_m, random.choice([120, 160, 200, 240, 280])))
                 next_sign_y_m += random.uniform(350, 450)
 
-            '''# Apply sign: update SPEED LIMIT (m/s) when player passes sign
-            while sign_index < len(signs) and player_car.position >= signs[sign_index].position:
-                new_limit_kmh = float(signs[sign_index].limit_kmh)
-                player_car.speed_limit = kmh_to_mps(new_limit_kmh)
-                sign_index += 1'''
-
             # Update all cars with dt-based physics
             for c in cars:
                 for sign in signs:
@@ -331,7 +325,6 @@ def run_simulation(sheet, num_traffic=6, speed_limit_kmh=120.0):
     dt_base = 1.0 / 60.0  # simulate at 60fps timestep regardless of wall clock
     dt = (dt_base * SIM_SPEED) / SUB_STEPS
 
-    print(cars)
     while any(c.position < 1000 for c in cars):
         for c in cars:
             # apply signs
