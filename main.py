@@ -1,6 +1,8 @@
 import pygame
 import random
 import sys
+from sheets import SpriteSheet
+from sheets import ATLAS_KEYS
 
 WIDTH, HEIGHT = 400, 800
 FPS = 60
@@ -17,52 +19,80 @@ LINE_COLOR = (235, 235, 235)
 
 CAR_W, CAR_H = 22, 40
 
+# --- Units ---
+# World distance is in METERS.
+# Sign limits are in KM/H.
+def kmh_to_mps(kmh: float) -> float:
+    return kmh * 1000.0 / 3600.0
+
+def m_to_km(m: float) -> float:
+    return m / 1000.0
 
 class Car:
-    def __init__(self, lane, world_y, speed, color=(60, 200, 80)):
+    def __init__(self, lane, world_y_m, speed_kmh, sprite):
         self.lane = lane
-        self.world_y = world_y
-        self.speed = speed
-        self.speed_limit = speed
-        self.color = color
+        self.world_y_m = world_y_m
+        self.speed_kmh = speed_kmh
+        self.sprite = sprite  # REQUIRED
 
     def x(self):
         lane_center = ROAD_LEFT + self.lane * LANE_W + LANE_W // 2
         return lane_center - CAR_W // 2
 
-    def update(self, dt):
-        self.world_y += self.speed * dt
+    def update(self, dt, moving: bool):
+        if not moving:
+            return
+        self.world_y_m += kmh_to_mps(self.speed_kmh) * dt
 
-    def draw(self, screen, camera_y):
-        screen_y = HEIGHT - (self.world_y - camera_y) - CAR_H
-        pygame.draw.rect(screen, self.color, (self.x(), screen_y, CAR_W, CAR_H))
+    def draw(self, screen, camera_y_m):
+        screen_y = HEIGHT - (self.world_y_m - camera_y_m) - CAR_H
+        screen.blit(self.sprite, (self.x(), screen_y))
 
 
 class SpeedSign:
-    def __init__(self, world_y, limit):
-        self.world_y = world_y
-        self.limit = limit
+    def __init__(self, world_y_m, limit_kmh):
+        self.world_y_m = world_y_m
+        self.limit_kmh = limit_kmh
 
-    def draw(self, screen, camera_y, font):
-        screen_y = HEIGHT - (self.world_y - camera_y) - 34
+    def draw(self, screen, camera_y_m, font):
+        screen_y = HEIGHT - (self.world_y_m - camera_y_m) - 34
         x = ROAD_RIGHT + 10  # always right side
 
         pygame.draw.line(screen, (120, 120, 120), (x + 22, screen_y + 34), (x + 22, screen_y + 60), 3)
         pygame.draw.rect(screen, (245, 245, 245), (x, screen_y, 44, 34), border_radius=6)
         pygame.draw.rect(screen, (30, 30, 30), (x, screen_y, 44, 34), 2, border_radius=6)
 
-        txt = font.render(str(self.limit), True, (20, 20, 20))
+        txt = font.render(str(self.limit_kmh), True, (20, 20, 20))
         screen.blit(txt, (x + (44 - txt.get_width()) // 2, screen_y + (34 - txt.get_height()) // 2))
 
 
-def draw_world(screen, signs, camera_y, font):
+class Button:
+    def __init__(self, rect, text):
+        self.rect = pygame.Rect(rect)
+        self.text = text
+
+    def draw(self, screen, font, enabled=True):
+        bg = (60, 160, 240) if enabled else (90, 90, 90)
+        pygame.draw.rect(screen, bg, self.rect, border_radius=8)
+        pygame.draw.rect(screen, (20, 20, 20), self.rect, 2, border_radius=8)
+        txt = font.render(self.text, True, (10, 10, 10))
+        screen.blit(
+            txt,
+            (self.rect.centerx - txt.get_width() // 2, self.rect.centery - txt.get_height() // 2),
+        )
+
+    def hit(self, pos):
+        return self.rect.collidepoint(pos)
+
+
+def draw_world(screen, signs, camera_y_m, font):
     screen.fill(GRASS_COLOR)
     pygame.draw.rect(screen, ROAD_COLOR, (ROAD_LEFT, 0, ROAD_WIDTH, HEIGHT))
     pygame.draw.line(screen, LINE_COLOR, (ROAD_LEFT + LANE_W, 0), (ROAD_LEFT + LANE_W, HEIGHT), 2)
     pygame.draw.line(screen, LINE_COLOR, (ROAD_LEFT + 2 * LANE_W, 0), (ROAD_LEFT + 2 * LANE_W, HEIGHT), 2)
 
     for s in signs:
-        s.draw(screen, camera_y, font)
+        s.draw(screen, camera_y_m, font)
 
 
 def main():
@@ -70,22 +100,49 @@ def main():
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 20)
+    sheet = SpriteSheet("cars.png")
 
-    # player car (the one that controls the camera + hits speed signs)
-    player_car = Car(lane=1, world_y=0.0, speed=220.0, color=(60, 200, 80))
+    # --- Start/End setup (meters) ---
+    START_Y_M = 0.0
+    END_Y_M = START_Y_M + 1000.0  # 1 km
 
-    # random traffic cars
+    # --- Start button ---
+    start_button = Button((10, 40, 110, 32), "START")
+    moving = False
+    finished = False
+
+    # --- Player car: controls camera + triggers speed signs ---
+        # Player car (pick a specific sprite if you want, or random too)
+    player_sprite = sheet.get_scaled("lambo", (CAR_W, CAR_H))
+    player_car = Car(lane=1, world_y_m=START_Y_M, speed_kmh=240.0, sprite=player_sprite)
+
     number_of_cars = 5
     cars = []
-    for i in range(number_of_cars):
-        lane = random.randint(0, LANES - 1)
-        world_y = random.uniform(-2000, -200)     # start ahead (off-screen)
-        speed = random.uniform(150, 300)
-        cars.append(Car(lane=lane, world_y=world_y, speed=speed, color=(220, 180, 60)))
 
-    camera_y = 0.0
+    for i in range(number_of_cars):
+        lane = i % LANES
+        sprite_name = random.choice(ATLAS_KEYS)
+        traffic_sprite = sheet.get_scaled(sprite_name, (CAR_W, CAR_H))
+
+        cars.append(
+            Car(
+                lane=lane,
+                world_y_m=START_Y_M,
+                speed_kmh=player_car.speed_kmh,
+                sprite=traffic_sprite
+            )
+        )
+    
+
+    for i, c in enumerate(cars):
+        print(f"Car {i}: lane={c.lane}, speed={c.speed_kmh}, y={c.world_y_m}, sprite={c.sprite}")
+
+    # Camera in meters
+    camera_y_m = 0.0
+
+    # Speed signs (km/h), placed ahead
     signs = []
-    next_sign_y = 300.0
+    next_sign_y_m = 150.0
     sign_index = 0
 
     running = True
@@ -96,44 +153,74 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-        # update cars
-        player_car.update(dt)
+            # Click start button
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if start_button.hit(event.pos) and not moving and not finished:
+                    moving = True
+
+        if moving and not finished:
+            # Update player and traffic
+            player_car.update(dt, moving=True)
+
+            # Keep all cars exactly same speed as player (no variation)
+            for c in cars:
+                c.speed_kmh = player_car.speed_kmh
+                c.update(dt, moving=True)
+
+            # Camera follows player (same "movement" as player)
+            camera_y_m = player_car.world_y_m - 120.0
+
+            # Spawn signs ahead of player until near the end point
+            while next_sign_y_m < min(player_car.world_y_m + 1400, END_Y_M + 400) and next_sign_y_m < END_Y_M:
+                signs.append(SpeedSign(next_sign_y_m, random.choice([120, 160, 200, 240, 280])))
+                next_sign_y_m += random.uniform(150, 250)
+
+            # Apply sign speed to player (KM/H), once we pass each sign
+            while sign_index < len(signs) and player_car.world_y_m >= signs[sign_index].world_y_m:
+                player_car.speed_kmh = float(signs[sign_index].limit_kmh)
+                sign_index += 1
+
+            # End condition: travelled 1km
+            if player_car.world_y_m >= END_Y_M:
+                finished = True
+                moving = False
+
+        # Draw world + signs
+        draw_world(screen, signs, camera_y_m, font)
+
+        # Draw start/end markers on the road (simple horizontal lines)
+        start_screen_y = HEIGHT - (START_Y_M - camera_y_m)
+        end_screen_y = HEIGHT - (END_Y_M - camera_y_m)
+        pygame.draw.line(screen, (0, 200, 255), (ROAD_LEFT, start_screen_y), (ROAD_RIGHT, start_screen_y), 3)
+        pygame.draw.line(screen, (255, 80, 80), (ROAD_LEFT, end_screen_y), (ROAD_RIGHT, end_screen_y), 3)
+
+        # UI info
+        distance_m = max(0.0, player_car.world_y_m - START_Y_M)
+        info1 = font.render(f"Speed: {int(player_car.speed_kmh)} km/h", True, (255, 255, 255))
+        info2 = font.render(f"Distance: {distance_m:.1f} m / 1000.0 m", True, (255, 255, 255))
+        screen.blit(info1, (10, 10))
+        screen.blit(info2, (10, 25))
+
+        if finished:
+            msg = font.render("FINISHED (1.0 km)", True, (255, 255, 255))
+            screen.blit(msg, (WIDTH // 2 - msg.get_width() // 2, 80))
+
+        # Start button
+        start_button.draw(screen, font, enabled=(not moving and not finished))
+
+        # Draw traffic + player
         for c in cars:
-            c.update(dt)
-
-        # camera follows player
-        camera_y = player_car.world_y - 120.0
-
-        # spawn signs ahead of player
-        while next_sign_y < player_car.world_y + 1400:
-            signs.append(SpeedSign(next_sign_y, random.choice([120, 160, 200, 240, 280])))
-            next_sign_y += random.uniform(500, 900)
-
-        # apply current sign limit to player (with bounds check)
-        while sign_index < len(signs) and player_car.world_y >= signs[sign_index].world_y:
-            player_car.speed = signs[sign_index].limit
-            sign_index += 1
-
-        # draw
-        draw_world(screen, signs, camera_y, font)
-
-        info = font.render(
-            f"speed={int(player_car.speed)}",
-            True,
-            (255, 255, 255),
-        )
-        screen.blit(info, (10, 10))
-
-        # draw traffic + player
-        for c in cars:
-            c.draw(screen, camera_y)
-        player_car.draw(screen, camera_y)
+            c.draw(screen, camera_y_m)
+        player_car.draw(screen, camera_y_m)
 
         pygame.display.flip()
+
 
     pygame.quit()
     sys.exit()
 
+def statistics():
+    print('hi')
 
 if __name__ == "__main__":
     main()
