@@ -38,7 +38,7 @@ class Car(CarLogic):
             speed=kmh_to_mps(speed_kmh),
             speed_limit=kmh_to_mps(speed_limit_kmh),
             acceleration=12.0 + random.uniform(-6, 6),     # m/s^2 (tuned for sane feel)
-            deceleration=-18.0 + random.uniform(-6, 6),   # m/s^2
+            deceleration=-24.0 + random.uniform(-6, 6),   # m/s^2
             laneCount=LANES,
             length=CAR_H
         )
@@ -51,7 +51,7 @@ class Car(CarLogic):
     def draw(self, screen, camera_y_m):
         screen_y = HEIGHT - (self.position - camera_y_m)
         screen.blit(self.sprite, (self.x(), screen_y))
-        pygame.draw.rect(screen, (255, 0, 0), (self.x() - 5, screen_y - self.get_stopping_distance(), 10, self.get_stopping_distance()))
+        pygame.draw.rect(screen, (255, 0, 0), (self.x(), screen_y - self.get_stopping_distance(), 10, self.get_stopping_distance()))
 
 class SpeedSign:
     def __init__(self, position, limit_kmh):
@@ -140,7 +140,11 @@ def main():
     finished = False
 
     # Build player + traffic (player returned; all cars stored in global cars list)
-    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=6)
+    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=1)
+    cars[1].lane = 1
+    cars[1].speed_preference = -20
+    #cars[2].lane = 0
+    #cars[2].speed_preference = -15
 
     # Camera in meters
     camera_y_m = 0.0

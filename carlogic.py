@@ -38,23 +38,20 @@ class CarLogic:
       "car_left": False,
       "car_right": False
     }
-    stopping_distance = self.get_stopping_distance()
     for car in cars:
       if car.id == self.id: continue
       lane_diff = car.lane - self.lane
       car_back = car.position + car.length
-      car_front = car.position
+      car_front = car.position - self.get_stopping_distance()
       self_back = self.position + self.length
-      self_front = self.position
+      self_front = self.position - car.get_stopping_distance()
       
-      gap_ahead = self_front - car_back
-      gap_behind = car_front - self_back
+      overlap_front = car.position > self.position and self_front < car_front < self_back
+      overlap_back = car.position < self.position and car_front < self_front < car_back
 
-      too_close_to_front = 0 <= gap_behind <= self.get_stopping_distance()
-      too_close_to_back = 0 <= gap_ahead <= car.get_stopping_distance()
-      if lane_diff == 0 and too_close_to_front: params["car_front"] = True
-      if lane_diff == -1 and (too_close_to_front or too_close_to_back): params["car_left"] = True
-      if lane_diff == 1 and (too_close_to_front or too_close_to_back): params["car_right"] = True
+      if lane_diff == 0 and overlap_front: params["car_front"] = True
+      if lane_diff == -1 and (overlap_front or overlap_back): params["car_left"] = True
+      if lane_diff == 1 and (overlap_front or overlap_back): params["car_right"] = True
     return params
 
   def update(self, dt):
