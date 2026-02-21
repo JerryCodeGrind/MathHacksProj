@@ -6,7 +6,7 @@ from sheets import SpriteSheet
 from sheets import ATLAS_KEYS
 from carstats import CarStats, cars
 
-WIDTH, HEIGHT = 700, 800
+WIDTH, HEIGHT = 1400, 800
 FPS = 60
 
 SIM_SPEED = 1
@@ -16,8 +16,8 @@ SPEEDO_CENTER = (80, 680)  # left side, near bottom
 SPEEDO_RADIUS = 60
 SPEEDO_MAX_SPEED = 300  # km/h
 
-LANES = 3
-ROAD_WIDTH = 260
+LANES = 5
+ROAD_WIDTH = 800
 ROAD_LEFT = (WIDTH - ROAD_WIDTH) // 2
 ROAD_RIGHT = ROAD_LEFT + ROAD_WIDTH
 LANE_W = ROAD_WIDTH // LANES
@@ -91,8 +91,8 @@ class Car(CarStats):
             position=position_m,
             speed=kmh_to_mps(speed_kmh),
             speed_limit=kmh_to_mps(speed_limit_kmh),
-            acceleration=12.0 + random.uniform(-6, 6),     # m/s^2 (tuned for sane feel)
-            deceleration=-24.0 + random.uniform(-6, 6),   # m/s^2
+            acceleration=8.0 + random.uniform(-4, 4),     # m/s^2 (tuned for sane feel)
+            deceleration=-12.0 + random.uniform(-4, 4),   # m/s^2
             laneCount=LANES,
             length=CAR_H
         )
@@ -141,8 +141,8 @@ class Button:
 def draw_world(screen, signs, camera_y_m, font):
     screen.fill(GRASS_COLOR)
     pygame.draw.rect(screen, ROAD_COLOR, (ROAD_LEFT, 0, ROAD_WIDTH, HEIGHT))
-    pygame.draw.line(screen, LINE_COLOR, (ROAD_LEFT + LANE_W, 0), (ROAD_LEFT + LANE_W, HEIGHT), 2)
-    pygame.draw.line(screen, LINE_COLOR, (ROAD_LEFT + 2 * LANE_W, 0), (ROAD_LEFT + 2 * LANE_W, HEIGHT), 2)
+    for i in range(1, LANES):
+        pygame.draw.line(screen, LINE_COLOR, (ROAD_LEFT + i * LANE_W, 0), (ROAD_LEFT + i * LANE_W, HEIGHT), 2)
 
     for s in signs:
         s.draw(screen, camera_y_m, font)
@@ -194,7 +194,7 @@ def main():
     finished = False
 
     # Build player + traffic (player returned; all cars stored in global cars list)
-    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=1)
+    player_car = spawn_traffic(sheet, START_Y_M, player_speed_limit_kmh=120.0, count=13)
     cars[1].lane = 1
     cars[1].speed_preference = -20
     #cars[2].lane = 0
